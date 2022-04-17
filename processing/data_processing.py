@@ -28,7 +28,7 @@ def create_polygon_mask(gdf: gpd.GeoDataFrame,
     --------
 
         gdf_mask: gpd.GeoDataFrame
-            GeoDataFrame containing
+            GeoDataFrame containing the masked polygons
 
     """
 
@@ -99,3 +99,89 @@ def data_intersect(data_intersected: gpd.GeoDataFrame,
     gdf_hd['HD[MWh/ha]'] = gdf_hd[hd_column]/1000
 
     return gdf_hd
+
+
+def create_polygon_masks(gdf: gpd.GeoDataFrame,
+                         stepsize: int,
+                         crs: str = 'EPSG:3034'):
+    """Creating a list of mask GeoDataFrames consisting of squares with a defined stepsize
+
+    Parameters:
+    ----------
+
+        gdf: gpd.GeoDataFrame
+            GeoDataFrame containing several polygons from which masks are made
+
+        stepsize: int
+            Size of the rasterized squares in meters.
+
+    Returns:
+    --------
+
+        masks: list
+            List of GeoDataFrames containing the masks
+
+    """
+
+    # Resetting index
+    gdf = gdf.reset_index()
+
+    # Creating the list of masked GeoDataFrames
+    masks = [create_polygon_mask(gdf=gdf.loc[gdf.index == i],
+                                                 stepsize=stepsize) for i in range(len(gdf))]
+
+    return masks
+
+
+def overlay_input_data_with_mask(df1,
+                                 df2):
+    overlay = gpd.overlay(df1=df1,
+                          df2=df2)
+
+    return overlay
+
+
+def overlay_input_data_with_masks(df1,
+                                  list_df2):
+    overlays = [overlay_input_data_with_mask(df1=df1,
+                                             df2=df2) for df2 in list_df2]
+
+    return overlays
+
+
+def calculate_hd(mask_gdf: gpd.GeoDataFrame,
+                 input_hd_gdf: gpd.GeoDataFrame,
+                 hd_type: 'str'):
+
+    if hd_type == 'res':
+        average_hd = 'HD_res_m2'
+    elif hd_type == 'com':
+        average_hd = 'HD_com_m2'
+    else:
+        raise ValueError('Residential or commercial heat demand must be provided')
+
+    # Creating 100m masks for each 10 km mask polygon
+    masks = create_polygon_masks(gdf=mask_gdf,
+                                 stepsize=100)
+
+    # Overlaying input data with each 100x100 m mask
+    masked_heat_demand = overlay_input_data_with_masks(df1=input_hd_gdf,
+                                                       list_df2=masks)
+
+    # Calculating HD and new geometry
+    for masked_heat_demand_gdf in masked_heat_demand:
+        masked_heat_demand_gdf['HD[MWh/ha]'] = masked_heat_demand_gdf[average_hd] * masked_heat_demand_gdf.area
+        masked_heat_demand_gdf['geometry'] = masked_heat_demand_gdf.centroid
+
+    # Calculating final HD with spatial join
+    hd = [data_intersect(data_intersected=masked_heat_demand[i],
+                                         mask_gdf=masks[i],
+                                         hd_column='HD[MWh/ha]') for i in range(len(masked_heat_demand))]
+
+    # Concatenating DataFrames
+    hd = pd.concat(hd)
+
+    return hd
+
+
+
