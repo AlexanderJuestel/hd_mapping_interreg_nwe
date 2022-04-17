@@ -96,7 +96,7 @@ def data_intersect(data_intersected: gpd.GeoDataFrame,
                                        axis=1)
 
     # Creating new column for heat demand in MWh
-    gdf_hd['HD[MWh/ha]'] = gdf_hd[hd_column]/1000
+    gdf_hd['HD[MWh/ha]'] = gdf_hd[hd_column] / 1000
 
     return gdf_hd
 
@@ -128,21 +128,61 @@ def create_polygon_masks(gdf: gpd.GeoDataFrame,
 
     # Creating the list of masked GeoDataFrames
     masks = [create_polygon_mask(gdf=gdf.loc[gdf.index == i],
-                                                 stepsize=stepsize) for i in range(len(gdf))]
+                                 stepsize=stepsize) for i in range(len(gdf))]
 
     return masks
 
 
-def overlay_input_data_with_mask(df1,
-                                 df2):
+def overlay_input_data_with_mask(df1: gpd.GeoDataFrame,
+                                 df2: gpd.GeoDataFrame):
+    """ Function to split the input data at the boundaries of the mask
+
+    Parameters:
+    ----------
+
+        df1: gpd.GeoDataFrame
+            GeoDataFrame containing the input data
+
+        df2: gpd.GeoDataFrame
+            GeoDataFrame containing the mask data
+
+    Returns:
+    --------
+
+        overlay: gpd.GeoDataFrame
+            GeoDataFrame containing the split data
+
+    """
+
+    # Overlaying the data
     overlay = gpd.overlay(df1=df1,
                           df2=df2)
 
     return overlay
 
 
-def overlay_input_data_with_masks(df1,
-                                  list_df2):
+def overlay_input_data_with_masks(df1: gpd.GeoDataFrame,
+                                  list_df2: list):
+    """ Function to split the input data at the boundaries of each mask
+
+    Parameters:
+    ----------
+
+        df1: gpd.GeoDataFrame
+            GeoDataFrame containing the input data
+
+        list_df2: list
+            list of GeoDataFrames containing the mask data
+
+    Returns:
+    --------
+
+        overlays: list
+            List of GeoDataFrame containing the split data
+
+    """
+
+    # Overlaying the input data with each mask
     overlays = [overlay_input_data_with_mask(df1=df1,
                                              df2=df2) for df2 in list_df2]
 
@@ -152,7 +192,20 @@ def overlay_input_data_with_masks(df1,
 def calculate_hd(mask_gdf: gpd.GeoDataFrame,
                  input_hd_gdf: gpd.GeoDataFrame,
                  hd_type: 'str'):
+    """ Function to calculate the heat demand
 
+    Parameters:
+    ----------
+
+        mask_gdf: gpd.GeoDataFrame
+            GeoDataFrame containing the mask
+
+        input_hd_gdf: gpd.GeoDataFrame
+            GeoDataFrame containing the HD data
+
+    """
+
+    # Checking which type of HD data is processed
     if hd_type == 'res':
         average_hd = 'HD_res_m2'
     elif hd_type == 'com':
@@ -175,13 +228,10 @@ def calculate_hd(mask_gdf: gpd.GeoDataFrame,
 
     # Calculating final HD with spatial join
     hd = [data_intersect(data_intersected=masked_heat_demand[i],
-                                         mask_gdf=masks[i],
-                                         hd_column='HD[MWh/ha]') for i in range(len(masked_heat_demand))]
+                         mask_gdf=masks[i],
+                         hd_column='HD[MWh/ha]') for i in range(len(masked_heat_demand))]
 
     # Concatenating DataFrames
     hd = pd.concat(hd)
 
     return hd
-
-
-
